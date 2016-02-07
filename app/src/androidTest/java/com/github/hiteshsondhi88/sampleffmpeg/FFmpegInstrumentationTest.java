@@ -136,8 +136,9 @@ public class FFmpegInstrumentationTest extends ActivityInstrumentationTestCase2<
 
     private void checkFFmpegCommon(final String cmd, final File outputFile) {
         Log.d(TAG, "start : "+outputFile.getAbsolutePath());
+        String[] command = cmd.split(" ");
         try {
-            ffmpeg.execute(cmd, new FFmpegExecuteResponseHandler() {
+            ffmpeg.execute(command, new FFmpegExecuteResponseHandler() {
 
                 @Override
                 public void onStart() {
