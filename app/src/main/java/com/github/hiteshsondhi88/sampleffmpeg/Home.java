@@ -93,15 +93,49 @@ public class Home extends Activity implements View.OnClickListener {
         //getRuntime().exec(new String[]{"ffmpeg", "-i", "2012-12-27.mp4", "-vf", "movie=bb.png [movie]; [in] [movie] overlay=0:0 [out]", "-vcodec", "libx264", "-acodec", "copy", "out.mp4"});
 
 
+
         // test merge using complex filter
+        /*
         String[] command = new String[]{
           "-i", "/sdcard/DCIM/Camera/Front.mp4", "-i", "/sdcard/DCIM/Camera/Front2.mp4",
           "-filter_complex", "[0:v:0] [0:a:0] [1:v:0] [1:a:0] concat=n=2:v=1:a=1 [v] [a]", "-map",
-          "[v]", "-map", "[a]", "-strict", "-2", "/sdcard/concatOutput3.mp4"
+          "[v]", "-map", "[a]", "-strict", "-2", "-vcodec", "libx264", "-preset", "ultrafast", "/sdcard/concatOutput3.mp4"
+        };
+         */
+
+        /*
+        // rotate video and clear metadata
+        String[] rotate = new String[]{
+          "-i", "/sdcard/DCIM/Camera/Front.mp4", "-vf", "transpose=1", "-metadata:s:v:0", "rotate=0",
+          "-strict", "-2", "-vcodec", "libx264", "-preset", "ultrafast", "/sdcard/tmp.mp4",
+        };
+        execFFmpegBinary(rotate);
+
+        String[] rotate2 = new String[]{
+          "-i", "/sdcard/DCIM/Camera/Back.mp4", "-vf", "transpose=2", "-metadata:s:v:0", "rotate=0",
+          "-strict", "-2", "-vcodec", "libx264", "-preset", "ultrafast", "/sdcard/tmp2.mp4",
+        };
+        execFFmpegBinary(rotate2);
+        */
+
+
+        String[] command = new String[]{
+          "-i", "/sdcard/Download/tmp.mp4",
+          "-i", "/sdcard/Download/tmp2.mp4",
+          "-i", "sdcard/Download/watermark.png",
+          "-filter_complex",
+          //"[0:v:0] [1:v:0] [0:a:0] [1:a:0] concat=n=2:v=1:a=1 [v] [a]",
+          "[0:v:0] scale=720:1280 [in1]; [1:v:0] scale=720:1280 [in2]; " +
+            "[in1][0:a:0][in2][1:a:0] concat=n=2:v=1:a=1 [v][a]; " +
+            "[v][2] overlay=30:30 [v_water]",
+          "-map", "[v_water]", "-map", "[a]",
+          "-strict", "-2", "-vcodec", "libx264", "-preset", "ultrafast",
+          "/sdcard/watermark.mp4"
         };
 
         // run the command
         execFFmpegBinary(command);
+
     }
 
     private void generateNoteOnSD(String sFileName, String sBody){
