@@ -31,6 +31,9 @@ import com.github.hiteshsondhi88.sampleffmpeg.Util.Util;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Home extends Activity implements View.OnClickListener {
 
@@ -49,6 +52,9 @@ public class Home extends Activity implements View.OnClickListener {
     Button runButton;
 
     private ProgressDialog progressDialog;
+
+    private ArrayList<String> fileNameList = new ArrayList<>();
+    private ArrayList<VideoDetail> VideoDetailList = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,9 +107,17 @@ public class Home extends Activity implements View.OnClickListener {
           Environment.DIRECTORY_MOVIES), MediaFileHelper.DIRECTORY_ANCHOR);
         File video1 = new File(dir.getPath() + File.separator + "Test.mp4");
         File video2 = new File(dir.getPath() + File.separator + "Test2.mp4");
+        File video3 = new File(dir.getPath() + File.separator + "Test3.mp4");
+
         Log.d(TAG, "video1=" + video1.getAbsolutePath());
         Log.d(TAG, "video2=" + video2.getAbsolutePath());
 
+        fileNameList.add(video1.toString());
+        fileNameList.add(video2.toString());
+        fileNameList.add(video3.toString());
+
+
+        /*
         String[] command = new String[]{
           "-i", video1.getAbsolutePath(), //"/sdcard/Download/tmp.mp4",
           "-i", video2.getAbsolutePath(), //"/sdcard/Download/tmp2.mp4",
@@ -116,6 +130,12 @@ public class Home extends Activity implements View.OnClickListener {
           "-map", "[v_water]", "-map", "[a]",
           "-strict", "-2", "-vcodec", "libx264", "-preset", "ultrafast",
           "/sdcard/watermark2.mp4"
+        };
+        */
+        String[] command = new String[]{
+          "-i", video1.getAbsolutePath(),
+          "-i", video2.getAbsolutePath(),
+          "-i", video3.getAbsolutePath()
         };
 
         // run the command
@@ -163,22 +183,72 @@ public class Home extends Activity implements View.OnClickListener {
         }
     }
 
+    private void regexInfo(String msg) {
+        //VideoDetail videoDetail = null;
+        //regex string here
+        Pattern pName = Pattern.compile("/.+\\.mp4");
+        Matcher mName = pName.matcher(msg);
+        while (mName.find()) {
+            Log.d(TAG, "match result = " + mName.group());
+            VideoDetailList.add(new VideoDetail(mName.group()));
+        }
+
+        // width / height
+        Pattern p = Pattern.compile("\\d{3,4}x\\d{3,4}");
+        Matcher m = p.matcher(msg);
+        int index = 0;
+        while (m.find()) {
+            String[] dimens = m.group().split("x");
+            Log.d(TAG, "match result = " + dimens[0] + ", " + dimens[1]);
+            if(VideoDetailList.get(index) != null) {
+                VideoDetailList.get(index).setWidth(Integer.parseInt(dimens[0]));
+                VideoDetailList.get(index).setHeight(Integer.parseInt(dimens[1]));
+                index++;
+            }
+        }
+
+        //rotate          : 90
+        Pattern p2 = Pattern.compile("rotate.*\\d");
+        Matcher m2 = p2.matcher(msg);
+        index = 0;
+        while (m2.find()) {
+            String[] rotate = m2.group().split(":\\s");
+            Log.d(TAG, "match result = " + rotate[1]);
+            if(VideoDetailList.get(index) != null) {
+                VideoDetailList.get(index).setRotation(Integer.parseInt(rotate[1]));
+                index++;
+            }
+        }
+
+        // print log
+        for(int j = 0; j < VideoDetailList.size(); j++) {
+            Log.d(TAG, "videoDetail = " + VideoDetailList.get(j).toString());
+        }
+    }
+
     private void execFFmpegBinary(final String[] command) {
         try {
             ffmpeg.execute(command, new ExecuteBinaryResponseHandler() {
                 @Override
                 public void onFailure(String s) {
+                    Log.d(TAG, "onFailure : ffmpeg " + s);
                     addTextViewToLayout("FAILED with output : " + s);
+
+                    if(command.length %2 == 0) {
+                        Log.d(TAG, "starts with -i, and ends with .mp4, its asking for video information");
+                        regexInfo(s);
+                    }
                 }
 
                 @Override
                 public void onSuccess(String s) {
+                    Log.d(TAG, "onSuccess : ffmpeg " + s);
                     addTextViewToLayout("SUCCESS with output : " + s);
                 }
 
                 @Override
                 public void onProgress(String s) {
-                    Log.d(TAG, "Started command : ffmpeg " + command);
+                    Log.d(TAG, "onProgress : ffmpeg " + s);
                     addTextViewToLayout("progress : " + s);
                     progressDialog.setMessage("Processing\n" + s);
                 }
@@ -187,14 +257,14 @@ public class Home extends Activity implements View.OnClickListener {
                 public void onStart() {
                     outputLayout.removeAllViews();
 
-                    Log.d(TAG, "Started command : ffmpeg " + command);
+                    //Log.d(TAG, "Started command : ffmpeg " + command);
                     progressDialog.setMessage("Processing...");
                     progressDialog.show();
                 }
 
                 @Override
                 public void onFinish() {
-                    Log.d(TAG, "Finished command : ffmpeg " + command);
+                    //Log.d(TAG, "Finished command : ffmpeg " + command);
                     progressDialog.dismiss();
                 }
             });
