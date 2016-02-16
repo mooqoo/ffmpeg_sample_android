@@ -4,9 +4,9 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -29,12 +29,8 @@ import com.github.hiteshsondhi88.libffmpeg.exceptions.FFmpegNotSupportedExceptio
 import com.github.hiteshsondhi88.sampleffmpeg.Util.Util;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 public class Home extends Activity implements View.OnClickListener {
 
@@ -64,6 +60,7 @@ public class Home extends Activity implements View.OnClickListener {
         loadFFMpegBinary();
         initUI();
         Util.copyBinaryFromAssetsToData(this, "sample_videos/sample_2.mp4", "sample_2.mp4");
+        Util.copyBinaryFromAssetsToData(this, "logowatermark.png", "logowatermark.png");
 
         // test ffmpeg command
         testCommand();
@@ -71,29 +68,6 @@ public class Home extends Activity implements View.OnClickListener {
     }
 
     private void testCommand() {
-        //String testCmd = "-i " + getMp4SampleFile().getAbsolutePath() + " -an /sdcard/mute-video.mp4";
-        /*
-        ffmpeg -i Front.mp4 -i Back.mp4 \
-         -filter_complex '[0:0] scale=720:1280 [in1]; [1:0] scale=720:1280 [in2]; [in1][in2] concat [v]' -map '[v]' \
-         output5.mp4 2>&1
-
-        String mergeCmd = "-i /sdcard/DCIM/Camera/Front.mp4 -i /sdcard/DCIM/Camera/Back.mp4" +
-          " -filter_complex '[0:0] scale=720:1280 [in1]; [1:0] scale=720:1280 [in2]; [in1][in2] concat [v]' -map '[v]' " +
-          "/sdcard/concatOutput3.mp4 2>&1";
-         */
-
-        // concat mp4 file with same codec
-        String filePath_1 = "file '/sdcard/DCIM/Camera/Front.mp4'\n";
-        String filePath_2 = "file '/sdcard/DCIM/Camera/Back.mp4'";
-        generateNoteOnSD("file-list.txt", filePath_1 + filePath_2);
-        String textFilePath = "/sdcard/Notes/file-list.txt";
-        String testMerge = "-f concat -i " + textFilePath + " -c copy /sdcard/concatOutput2.mp4";
-
-        //String cmdInfo = "-i /sdcard/DCIM/Camera/Front.mp4 /sdcard/Notes/file-list.txt";
-        //getRuntime().exec(new String[]{"ffmpeg", "-i", "2012-12-27.mp4", "-vf", "movie=bb.png [movie]; [in] [movie] overlay=0:0 [out]", "-vcodec", "libx264", "-acodec", "copy", "out.mp4"});
-
-
-
         // test merge using complex filter
         /*
         String[] command = new String[]{
@@ -118,19 +92,30 @@ public class Home extends Activity implements View.OnClickListener {
         execFFmpegBinary(rotate2);
         */
 
+        // test watermark
+        File watermark = new File(getFilesDir(), "logowatermark.png");
+        Log.d(TAG, "watermark = " + watermark.getAbsolutePath());
+
+        // test video directory
+        File dir = new File(Environment.getExternalStoragePublicDirectory(
+          Environment.DIRECTORY_MOVIES), MediaFileHelper.DIRECTORY_ANCHOR);
+        File video1 = new File(dir.getPath() + File.separator + "Test.mp4");
+        File video2 = new File(dir.getPath() + File.separator + "Test2.mp4");
+        Log.d(TAG, "video1=" + video1.getAbsolutePath());
+        Log.d(TAG, "video2=" + video2.getAbsolutePath());
 
         String[] command = new String[]{
-          "-i", "/sdcard/Download/tmp.mp4",
-          "-i", "/sdcard/Download/tmp2.mp4",
-          "-i", "sdcard/Download/watermark.png",
+          "-i", video1.getAbsolutePath(), //"/sdcard/Download/tmp.mp4",
+          "-i", video2.getAbsolutePath(), //"/sdcard/Download/tmp2.mp4",
+          "-i", watermark.getAbsolutePath(), //"/sdcard/Download/watermark.png",
           "-filter_complex",
           //"[0:v:0] [1:v:0] [0:a:0] [1:a:0] concat=n=2:v=1:a=1 [v] [a]",
           "[0:v:0] scale=720:1280 [in1]; [1:v:0] scale=720:1280 [in2]; " +
             "[in1][0:a:0][in2][1:a:0] concat=n=2:v=1:a=1 [v][a]; " +
-            "[v][2] overlay=30:30 [v_water]",
+            "[v][2] overlay=main_w-overlay_w-30:main_h-overlay_h-30 [v_water]",
           "-map", "[v_water]", "-map", "[a]",
           "-strict", "-2", "-vcodec", "libx264", "-preset", "ultrafast",
-          "/sdcard/watermark.mp4"
+          "/sdcard/watermark2.mp4"
         };
 
         // run the command
