@@ -132,11 +132,20 @@ public class Home extends Activity implements View.OnClickListener {
           "/sdcard/watermark2.mp4"
         };
         */
-        String[] command = new String[]{
+
+        String[] command = new String[fileNameList.size()*2];
+        for(int i = 0; i < fileNameList.size(); i++) {
+            command[i*2] = "-i";
+            command[i*2 + 1] = fileNameList.get(i);
+        }
+
+        /*
+        String[] command = new String[] {
           "-i", video1.getAbsolutePath(),
           "-i", video2.getAbsolutePath(),
           "-i", video3.getAbsolutePath()
         };
+        */
 
         // run the command
         execFFmpegBinary(command);
