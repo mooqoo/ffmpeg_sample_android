@@ -12,11 +12,12 @@ public class VideoDetail {
   private int height;
   private int rotation;
   private String fileName;
-  private String filePath;
+  private String fileTmpName;
 
   // Constructor
   public VideoDetail(String fileName) {
     this.fileName = fileName;
+    fileTmpName = fileName.replace(".mp4", "Tmp.mp4");
   }
 
   // tostring
@@ -60,11 +61,11 @@ public class VideoDetail {
     this.fileName = fileName;
   }
 
-  public String getFilePath() {
-    return filePath;
+  public String getFileTmpName() {
+    return fileTmpName;
   }
 
-  public void setFilePath(String filePath) {
-    this.filePath = filePath;
+  public void setFileTmpName(String fileTmpName) {
+    this.fileTmpName = fileTmpName;
   }
 }

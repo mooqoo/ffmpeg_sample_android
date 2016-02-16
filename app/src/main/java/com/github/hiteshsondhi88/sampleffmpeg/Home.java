@@ -53,8 +53,16 @@ public class Home extends Activity implements View.OnClickListener {
 
     private ProgressDialog progressDialog;
 
+    // for test
+    private static final int STATE_GET_INFO = 1;
+    private static final int STATE_ROTATE = 2;
+    private static final int STATE_CONCAT = 3;
+    private static final int STATE_OVERLAY = 4;
+
     private ArrayList<String> fileNameList = new ArrayList<>();
     private ArrayList<VideoDetail> VideoDetailList = new ArrayList<>();
+    private int FFMPEG_STATE = STATE_GET_INFO;
+    private int FFMPEG_ROTATE_COUNT = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -138,14 +146,6 @@ public class Home extends Activity implements View.OnClickListener {
             command[i*2] = "-i";
             command[i*2 + 1] = fileNameList.get(i);
         }
-
-        /*
-        String[] command = new String[] {
-          "-i", video1.getAbsolutePath(),
-          "-i", video2.getAbsolutePath(),
-          "-i", video3.getAbsolutePath()
-        };
-        */
 
         // run the command
         execFFmpegBinary(command);
@@ -235,6 +235,89 @@ public class Home extends Activity implements View.OnClickListener {
         }
     }
 
+    private String getRotateTranspose(int rotation) {
+        switch(rotation) {
+            case 90: return "transpose=1";
+            case 180: return "vflip,hflip";
+            case 270: return "transpose=2";
+        }
+        return null;
+    }
+
+    private void rotateVideo() {
+        // Rotate video and clear MetaData
+        FFMPEG_STATE = STATE_ROTATE;
+        FFMPEG_ROTATE_COUNT = 0;
+        Log.d(TAG, "Rotate video!!");
+
+        String[] command = new String[fileNameList.size()*2];
+        for(int i = 0; i < VideoDetailList.size(); i++) {
+            VideoDetail vDetail = VideoDetailList.get(i);
+            //String tmpFileName = vDetail.getFileName().replace(".mp4", "Tmp.mp4");
+            Log.d(TAG, "tmpFileName = " + vDetail.getFileTmpName() + ", rotation = " + getRotateTranspose(vDetail.getRotation()));
+
+            String[] rotate = new String[] {
+              "-i", vDetail.getFileName(), "-vf", getRotateTranspose(vDetail.getRotation()), "-metadata:s:v:0", "rotate=0",
+              "-strict", "-2", "-vcodec", "libx264", "-preset", "ultrafast", vDetail.getFileTmpName()
+            };
+            execFFmpegBinary(rotate);
+        }
+    }
+
+    private void concatVideo() {
+        // Rotate video and clear MetaData
+        FFMPEG_STATE = STATE_ROTATE;
+
+        int numOfFile =  VideoDetailList.size();
+
+        int minWidth = VideoDetailList.get(0).getWidth();
+        int minHeight = VideoDetailList.get(0).getHeight();
+        for (int i=0; i<numOfFile; i++) {
+            minWidth = Math.min(minWidth, VideoDetailList.get(i).getWidth());
+            minHeight = Math.min(minHeight, VideoDetailList.get(i).getHeight());
+        }
+
+        String scaleCmd = "";       // "[0:v:0] scale=720:1280 [in1]; [1:v:0] scale=720:1280 [in2]; "
+        String concatCmd = "";      // "[in1][0:a:0][in2][1:a:0] concat=n=2:v=1:a=1 [v][a]; "
+        String watermarkCmd = "";   // "[v][2] overlay=main_w-overlay_w-30:main_h-overlay_h-30 [v_water]"
+        for (int i=0; i<numOfFile; i++) {
+            scaleCmd += String.format("[%d:v:0] scale=%d:%d [in%d]; ", i, minHeight, minWidth, i);
+            concatCmd += String.format("[in%d][%d:a:0]", i, i);
+        }
+        concatCmd += String.format("concat=n=%d:v=1:a=1 [v][a]; ", numOfFile);
+        watermarkCmd += String.format("[v][%d] overlay=main_w-overlay_w-30:main_h-overlay_h-30 [v_water]", numOfFile);
+        Log.d(TAG, "scaleCmd = " + scaleCmd);
+        Log.d(TAG, "concatCmd = " + concatCmd);
+        Log.d(TAG, "watermarkCmd = " + watermarkCmd);
+
+        // filePath for watermark
+        File watermark = new File(getFilesDir(), "logowatermark.png");
+
+        // command to scale/concat/overlay
+        String[] command = new String[numOfFile*2 + 15];
+        for(int i = 0; i < numOfFile; i++) {
+            command[i*2] = "-i";
+            command[i*2 + 1] = VideoDetailList.get(i).getFileTmpName();
+        }
+        command[numOfFile*2] = "-i";
+        command[numOfFile*2 + 1] = watermark.getAbsolutePath();
+        command[numOfFile*2 + 2] = "-filter_complex";
+        command[numOfFile*2 + 3] = scaleCmd + concatCmd + watermarkCmd;
+        command[numOfFile*2 + 4] = "-map";
+        command[numOfFile*2 + 5] = "[v_water]";
+        command[numOfFile*2 + 6] = "-map";
+        command[numOfFile*2 + 7] = "[a]";
+        command[numOfFile*2 + 8] = "-strict";
+        command[numOfFile*2 + 9] = "-2";
+        command[numOfFile*2 + 10] = "-vcodec";
+        command[numOfFile*2 + 11] = "libx264";
+        command[numOfFile*2 + 12] = "-preset";
+        command[numOfFile*2 + 13] = "ultrafast";
+        command[numOfFile*2 + 14] = "/sdcard/watermark3.mp4";
+
+        execFFmpegBinary(command);
+    }
+
     private void execFFmpegBinary(final String[] command) {
         try {
             ffmpeg.execute(command, new ExecuteBinaryResponseHandler() {
@@ -243,9 +326,14 @@ public class Home extends Activity implements View.OnClickListener {
                     Log.d(TAG, "onFailure : ffmpeg " + s);
                     addTextViewToLayout("FAILED with output : " + s);
 
-                    if(command.length %2 == 0) {
+                    if(FFMPEG_STATE == STATE_GET_INFO && command.length %2 == 0) {
                         Log.d(TAG, "starts with -i, and ends with .mp4, its asking for video information");
+
+                        // 1.) GET VIDEO INFO
                         regexInfo(s);
+
+                        // 2.) Rotate video and clear MetaData
+                        rotateVideo();
                     }
                 }
 
@@ -253,6 +341,23 @@ public class Home extends Activity implements View.OnClickListener {
                 public void onSuccess(String s) {
                     Log.d(TAG, "onSuccess : ffmpeg " + s);
                     addTextViewToLayout("SUCCESS with output : " + s);
+
+                    if (FFMPEG_STATE == STATE_ROTATE) {
+                        FFMPEG_ROTATE_COUNT++;
+
+                        // all file is rotated
+                        if (FFMPEG_ROTATE_COUNT == VideoDetailList.size()) {
+                            // scale and concat
+                            concatVideo();
+                        }
+                    }
+
+                    else if (FFMPEG_STATE == STATE_CONCAT) {
+
+                        Log.d(TAG, "video concat complete!");
+
+                        // TODO concat complete!
+                    }
                 }
 
                 @Override
